@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+  <head>
+     <link rel="styleSheet" href="webshopStyle.css"></link>
+     <title>
+       webshop
+     </title>
+  </head>
+  <body>
+    <header> 
+    <h1> stadslab winkel </h1>
+    <button id="authorize_button" style="display: none;">Authorize</button>
+    <button id="signout_button" style="display: none;">Sign Out</button>
+    </header>
+
+  <div class="productContainer">
+    <nav >
+      <ul id="menuCategory"> 
+      </ul>  
+    </nav> 
+    <div id="productListContainer"> 
+        <input type="search" id='searchbar' placeholder="zoeken">
+        <div id='productList'></div>
+    </div>
+    <div id="productDetail"> 
+        <p id="productCategory"></p>
+        <h1 id="productName"> </h1>
+        <img id="productImage" src="#" width="200" height="auto"/>
+        <p id="productPrice"> </p>
+        <a id="productSupplier" href=""></a>
+    </div>
+  </div>
+    
+    
+
+    <pre id="content" style="white-space: pre-wrap;"></pre>
+    <script type="text/javascript">
+        // Client ID and API key from the Developer Console
+        var CLIENT_ID ;
+        var API_KEY ;
+  
+        // Array of API discovery doc URLs for APIs used by the quickstart
+        var DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
+  
+        // Authorization scopes required by the API; multiple scopes can be
+        // included, separated by spaces.
+        var SCOPES = "https://www.googleapis.com/auth/spreadsheets.readonly";
+  
+        var authorizeButton = document.getElementById('authorize_button');
+        var signoutButton = document.getElementById('signout_button');
+
+        var productList;
+        var filteredList;
+        /**
+         *  On load, called to load the auth2 library and API client library.
+         */
+        function handleClientLoad() {
+          gapi.load('client:auth2', initClient);
+        }
+  
+        /**
+         *  Initializes the API client library and sets up sign-in state
+         *  listeners.
+         */
+        function initClient() {
+          gapi.client.init({
+            apiKey: API_KEY,
+            clientId: CLIENT_ID,
+            discoveryDocs: DISCOVERY_DOCS,
+            scope: SCOPES
+          }).then(function () {
+            // Listen for sign-in state changes.
+            gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+  
+            // Handle the initial sign-in state.
+            updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+            authorizeButton.onclick = handleAuthClick;
+            signoutButton.onclick = handleSignoutClick;
+          }, function(error) {
+            appendPre(JSON.stringify(error, null, 2));
+          });
+        }
+  
+        /**
+         *  Called when the signed in status changes, to update the UI
+         *  appropriately. After a sign-in, the API is called.
+         */
+        function updateSigninStatus(isSignedIn) {
+          if (isSignedIn) {
+            authorizeButton.style.display = 'none';
+            signoutButton.style.display = 'block';
+            getProducts();
+            getCategories();
+          } else {
+            authorizeButton.style.display = 'block';
+            signoutButton.style.display = 'none';
+          }
+        }
+  
+        /**
+         *  Sign in the user upon button click.
+         */
+        function handleAuthClick(event) {
+          gapi.auth2.getAuthInstance().signIn();
+        }
+  
+        /**
+         *  Sign out the user upon button click.
+         */
+        function handleSignoutClick(event) {
+          gapi.auth2.getAuthInstance().signOut();
+        }
+  
+        /**
+         * Append a pre element to the body containing the given message
+         * as its text node. Used to display the results of the API call.
+         *
+         * @param {string} message Text to be placed in pre element.
+         */
+        function appendPre(message) {
+          var pre = document.getElementById('content');
+          var textContent = document.createTextNode(message + '\n');
+          pre.appendChild(textContent);
+        }
+  
+        /**
+         * Print the names and majors of students in a sample spreadsheet:
+         * https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+         */
+        function getProducts() {
+          gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: '1a4ZZ7E4M3xn6SKBvaMPwmc6ueeai3lHJaXpUnnHF1Jw',
+            range: 'Data!B3:G',
+          }).then(function(response) {
+            var range = response.result;
+            console.log(response)
+            if (range.values.length > 0) {
+              productList = range.values; 
+             
+              parseData(range.values)
+            } else {
+              appendPre('No data found.');
+            }
+          }, function(response) {
+            appendPre('Error: ' + response.result.error.message);
+          });
+        }
+
+        function getCategories() {
+          gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: '1a4ZZ7E4M3xn6SKBvaMPwmc6ueeai3lHJaXpUnnHF1Jw',
+            range: 'Data!C3:C',
+          }).then(function(response) {
+            var range = response.result;
+            if (range.values.length > 0) {
+              const newArr = [];
+              for(let i of range.values){
+                newArr.push(i[0])
+              }
+             
+              // categories is without duplicates
+              var categories = [...new Set(newArr)]
+              var categoryList = document.getElementById('menuCategory');
+              var all = document.createElement('li');
+              all.className = "categoryItem";
+              all.innerText = 'Alles';
+              categoryList.appendChild(all);
+              all.style.backgroundColor = '#813cff';
+              all.style.color = '#FFF';
+
+              all.addEventListener('click', function (e){
+                filteredList = productList;
+                parseData(filteredList);
+                makePurple(e);
+              })
+              for(let cat of categories){
+                var li = document.createElement('li');
+                li.className = "categoryItem";
+                li.innerText = cat;
+                categoryList.appendChild(li);
+                li.addEventListener('click', function (e){
+                  console.log(e.target.innerText)
+                  makePurple(e);
+                  var categoryFilter = productList.filter((product) => {
+                    return product[1].toLowerCase().includes(e.target.innerText.toLowerCase());
+                  })
+                  filteredList = categoryFilter
+                  parseData(categoryFilter);
+                })
+              }
+              
+            } else {
+              appendPre('No data found.');
+            }
+          }, function(response) {
+            appendPre('Error: ' + response.result.error.message);
+          });
+        }
+
+        function makePurple(e){
+          for(let i of document.querySelectorAll(".categoryItem")){
+            i.style.backgroundColor = '#FFF';
+            i.style.color = '#202020';
+          }
+          e.target.style.backgroundColor = '#813cff';
+          e.target.style.color = '#FFF';
+        }
+
+        function parseData(sheetRange){
+            var productList = document.getElementById('productList');
+            var productName = document.getElementById('productName');
+            var productImage = document.getElementById('productImage');
+            var productPrice = document.getElementById('productPrice');
+            var productCategory = document.getElementById('productCategory');
+            var productSupplier = document.getElementById('productSupplier');
+            productList.innerHTML = '';
+            for (i = 0; i < sheetRange.length; i++) {
+                var row = sheetRange[i];
+                if(i==0){
+                    productName.innerText = row[0];
+                    productImage.src= row[5];
+                    productPrice.innerText= row[2];
+                    productCategory.innerText = row[1];
+                    productSupplier.innerText = row[3];
+                    productSupplier.href = row[4];
+                }
+
+                var row = sheetRange[i];
+                var productRow = document.createElement('li');
+                var link = document.createElement('a');
+                link.innerText = row[0];
+                link.dataset.productImg = row[5];
+                link.dataset.productName = row[0];
+                link.dataset.productPrice = row[2];
+                link.dataset.productCategory = row[1];
+                link.dataset.productSupplierLink = row[4]
+                link.dataset.productSupplier = row[3];
+                productRow.appendChild(link);
+                productList.appendChild(productRow)
+                link.addEventListener('click', function (e){
+                    var elementData = e.target.dataset;
+                    productName.innerText = elementData.productName;
+                    productImage.src= elementData.productImg;
+                    productPrice.innerText= elementData.productPrice;
+                    productCategory.innerText = elementData.productCategory;
+                    productSupplier.innerText = elementData.productSupplier;
+                    productSupplier.href = elementData.productSupplierLink;
+                })
+              }
+        }
+
+        var search = document.getElementById('searchbar');
+        search.addEventListener('keyup', function(e){
+          var filter = filteredList.filter((product) => {
+            return product[0].toLowerCase().includes(e.target.value.toLowerCase());
+          })
+          parseData(filter);
+        })
+
+      
+  
+      </script>
+      <script async defer src="https://apis.google.com/js/api.js"
+      onload="this.onload=function(){};handleClientLoad()"
+      onreadystatechange="if (this.readyState === 'complete') this.onload()">
+    </script>
+  </body>
+</html>
